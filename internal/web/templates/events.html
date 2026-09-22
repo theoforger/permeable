@@ -6,9 +6,10 @@
 <title>permeable — events</title>
 <style>
   :root { color-scheme: light dark; }
-  body { font: 15px/1.4 system-ui, sans-serif; max-width: 70rem; margin: 2rem auto; padding: 0 1rem; }
+  body { font: 15px/1.4 system-ui, sans-serif; max-width: min(96%, 88rem); margin: 2rem auto; padding: 0 1rem; }
   h1 { margin-bottom: 0.25rem; }
   h2 { margin-top: 2.5rem; border-bottom: 1px solid #8884; padding-bottom: 0.25rem; }
+  nav { display: flex; gap: 1rem; margin: 0.5rem 0 1rem; }
   .flash { padding: 0.5rem 0.75rem; border-radius: 4px; margin: 1rem 0; }
   .flash.ok { background: #2a7f4022; border: 1px solid #2a7f40; }
   .flash.err { background: #b0303022; border: 1px solid #b03030; }
@@ -21,8 +22,11 @@
   .danger { color: #b03030; }
   .hint { font-size: 0.8rem; opacity: 0.7; }
   button { cursor: pointer; font-size: 0.85rem; }
-  nav a { margin-right: 1rem; }
   tr.excluded td { opacity: 0.55; }
+
+  /* Active rules + Occurrence overrides are both short reference tables
+     — pair them side by side on wide screens instead of stacking. */
+  .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); gap: 0 2rem; align-items: start; }
 </style>
 </head>
 <body>
@@ -34,48 +38,54 @@
 {{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
 {{if .Message}}<div class="flash ok">{{.Message}}</div>{{end}}
 
-<h2>Active rules</h2>
+<div class="columns">
+  <div>
+    <h2>Active rules</h2>
 
-{{if not .Rules}}<p class="hint">No "always include/exclude" rules yet.</p>{{end}}
-{{if .Rules}}
-<table>
-  <tr><th>Source</th><th>Title</th><th>Action</th><th></th></tr>
-  {{range .Rules}}
-  <tr>
-    <td>{{.SourceName}}</td>
-    <td>{{.TitleNormalized}}</td>
-    <td>{{.Action}}</td>
-    <td>
-      <form class="inline" method="post" action="/events/rules/{{.ID}}/delete">
-        <button type="submit" class="danger">Remove</button>
-      </form>
-    </td>
-  </tr>
-  {{end}}
-</table>
-{{end}}
+    {{if not .Rules}}<p class="hint">No "always include/exclude" rules yet.</p>{{end}}
+    {{if .Rules}}
+    <table>
+      <tr><th>Source</th><th>Title</th><th>Action</th><th></th></tr>
+      {{range .Rules}}
+      <tr>
+        <td>{{.SourceName}}</td>
+        <td>{{.TitleNormalized}}</td>
+        <td>{{.Action}}</td>
+        <td>
+          <form class="inline" method="post" action="/events/rules/{{.ID}}/delete">
+            <button type="submit" class="danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+  </div>
 
-<h2>Occurrence overrides</h2>
+  <div>
+    <h2>Occurrence overrides</h2>
 
-{{if not .Exceptions}}<p class="hint">No single-occurrence overrides yet.</p>{{end}}
-{{if .Exceptions}}
-<table>
-  <tr><th>Source</th><th>Title</th><th>Date</th><th>Action</th><th></th></tr>
-  {{range .Exceptions}}
-  <tr>
-    <td>{{.SourceName}}</td>
-    <td>{{.TitleNormalized}}</td>
-    <td>{{.OccurrenceDate}}</td>
-    <td>{{.Action}}</td>
-    <td>
-      <form class="inline" method="post" action="/events/exceptions/{{.ID}}/delete">
-        <button type="submit" class="danger">Remove</button>
-      </form>
-    </td>
-  </tr>
-  {{end}}
-</table>
-{{end}}
+    {{if not .Exceptions}}<p class="hint">No single-occurrence overrides yet.</p>{{end}}
+    {{if .Exceptions}}
+    <table>
+      <tr><th>Source</th><th>Title</th><th>Date</th><th>Action</th><th></th></tr>
+      {{range .Exceptions}}
+      <tr>
+        <td>{{.SourceName}}</td>
+        <td>{{.TitleNormalized}}</td>
+        <td>{{.OccurrenceDate}}</td>
+        <td>{{.Action}}</td>
+        <td>
+          <form class="inline" method="post" action="/events/exceptions/{{.ID}}/delete">
+            <button type="submit" class="danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+  </div>
+</div>
 
 <h2>Occurrences</h2>
 

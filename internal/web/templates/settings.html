@@ -6,29 +6,50 @@
 <title>permeable — settings</title>
 <style>
   :root { color-scheme: light dark; }
-  body { font: 15px/1.4 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+  body { font: 15px/1.4 system-ui, sans-serif; max-width: min(96%, 88rem); margin: 2rem auto; padding: 0 1rem; }
   h1 { margin-bottom: 0.25rem; }
   h2 { margin-top: 2.5rem; border-bottom: 1px solid #8884; padding-bottom: 0.25rem; }
+  nav { display: flex; gap: 1rem; margin: 0.5rem 0 1rem; }
   .flash { padding: 0.5rem 0.75rem; border-radius: 4px; margin: 1rem 0; }
   .flash.ok { background: #2a7f4022; border: 1px solid #2a7f40; }
   .flash.err { background: #b0303022; border: 1px solid #b03030; }
-  .source-card { border: 1px solid #8884; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
-  .source-card h3 { margin: 0 0 0.5rem; }
   .badge { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: #8884; margin-left: 0.5rem; }
   .badge.ok { background: #2a7f4033; }
   .badge.error { background: #b0303033; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+  td, th { text-align: left; padding: 0.3rem 0.5rem; border-bottom: 1px solid #8882; font-size: 0.9rem; }
   form.inline { display: inline; }
-  form.edit-form { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 0.75rem; align-items: center; max-width: 32rem; }
-  form.edit-form label { text-align: right; font-size: 0.85rem; opacity: 0.8; }
-  form.edit-form input[type=text], form.edit-form input[type=url] { width: 100%; box-sizing: border-box; }
-  .actions { margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center; }
   .danger { color: #b03030; }
-  .events-list { margin-top: 0.75rem; }
-  .events-list table { border-collapse: collapse; width: 100%; }
-  .events-list td, .events-list th { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid #8882; font-size: 0.9rem; }
-  .add-source { border: 1px dashed #8886; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; }
   .hint { font-size: 0.8rem; opacity: 0.7; }
   button { cursor: pointer; }
+  .actions { margin-top: 0.5rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+  /* Responsive card grid — sources lay out as multiple columns on wide
+     screens instead of one narrow full-width block per source. */
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr)); gap: 1rem; margin-top: 1rem; }
+  .card { border: 1px solid #8884; border-radius: 6px; padding: 1rem; }
+  .card.dashed { border-style: dashed; border-color: #8886; }
+  .card h3 { margin: 0 0 0.75rem; }
+  .card h4 { margin: 1rem 0 0.25rem; }
+
+  /* Standalone smaller forms (not part of the card grid) — capped width
+     so they don't stretch edge-to-edge on a wide page. */
+  .panel { border: 1px dashed #8886; border-radius: 6px; padding: 1rem; margin-top: 1rem; max-width: 30rem; }
+
+  /* Pairs of small sections side by side on wide screens. */
+  .columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 0 2rem; }
+
+  /* Stacked label-above-input forms; wrapping the input in the label
+     gives free click-to-focus association without id/for bookkeeping. */
+  form.edit-form { display: flex; flex-direction: column; gap: 0.6rem; }
+  form.edit-form > label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; opacity: 0.8; }
+  form.edit-form input[type=text], form.edit-form input[type=url], form.edit-form input[type=number], form.edit-form select {
+    font-size: 0.95rem; opacity: 1; padding: 0.4rem 0.5rem; border-radius: 4px;
+    border: 1px solid #8886; background: transparent; color: inherit; box-sizing: border-box; width: 100%;
+  }
+  form.edit-form label.checkbox-field { flex-direction: row; align-items: center; gap: 0.4rem; opacity: 1; font-size: 0.95rem; }
+  .radio-group { display: flex; gap: 1rem; font-size: 0.95rem; }
+  .radio-group label { display: flex; align-items: center; gap: 0.3rem; }
 </style>
 </head>
 <body>
@@ -36,10 +57,13 @@
 <h1>permeable</h1>
 <p class="hint">Admin UI — keep this port LAN-only. The public feed is served on a separate port.</p>
 <nav><a href="/events">Events</a><a href="/stats">Stats</a></nav>
-<p>Feed URL: <code>{{.FeedURL}}</code> — subscribe to this from your calendar app.</p>
-<form method="post" action="/refresh">
-  <button type="submit">Refresh now</button>
-</form>
+
+<div class="actions">
+  <p style="margin: 0;">Feed URL: <code>{{.FeedURL}}</code> — subscribe to this from your calendar app.</p>
+  <form method="post" action="/refresh">
+    <button type="submit">Refresh now</button>
+  </form>
+</div>
 
 {{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
 {{if .Message}}<div class="flash ok">{{.Message}}</div>{{end}}
@@ -48,8 +72,10 @@
 
 {{if not .Sources}}<p class="hint">No sources yet — add one below.</p>{{end}}
 
+<div class="cards-grid">
+
 {{range .Sources}}
-<div class="source-card">
+<div class="card">
   <h3>
     {{.Name}}
     <span class="badge">{{.Type}}</span>
@@ -58,24 +84,17 @@
   </h3>
 
   <form class="edit-form" method="post" action="/sources/{{.ID}}">
-    <label for="name-{{.ID}}">Name</label>
-    <input id="name-{{.ID}}" type="text" name="name" value="{{.Name}}" required>
+    <label>Name<input type="text" name="name" value="{{.Name}}" required></label>
 
     {{if eq .Type "url"}}
-    <label for="url-{{.ID}}">URL</label>
-    <input id="url-{{.ID}}" type="url" name="url" value="{{.URL}}" required>
+    <label>URL<input type="url" name="url" value="{{.URL}}" required></label>
     {{end}}
 
-    <label for="prefix-{{.ID}}">Title prefix</label>
-    <input id="prefix-{{.ID}}" type="text" name="title_prefix" value="{{.TitlePrefix}}" placeholder="e.g. [Work]">
+    <label>Title prefix<input type="text" name="title_prefix" value="{{.TitlePrefix}}" placeholder="e.g. [Work]"></label>
 
-    <label for="enabled-{{.ID}}">Enabled</label>
-    <input id="enabled-{{.ID}}" type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}>
+    <label class="checkbox-field"><input type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}> Enabled</label>
+    <label class="checkbox-field"><input type="checkbox" name="default_include" {{if .DefaultInclude}}checked{{end}}> Include new events by default</label>
 
-    <label for="default-{{.ID}}">Include new events by default</label>
-    <input id="default-{{.ID}}" type="checkbox" name="default_include" {{if .DefaultInclude}}checked{{end}}>
-
-    <span></span>
     <div class="actions">
       <button type="submit">Save</button>
     </div>
@@ -88,7 +107,7 @@
   </div>
 
   {{if eq .Type "manual"}}
-  <div class="events-list">
+  <div>
     <h4>Manual events</h4>
     {{if not .ManualEvents}}<p class="hint">No events uploaded yet.</p>{{end}}
     {{if .ManualEvents}}
@@ -108,42 +127,38 @@
     </table>
     {{end}}
 
-    <form method="post" action="/sources/{{.ID}}/events" enctype="multipart/form-data">
+    <form method="post" action="/sources/{{.ID}}/events" enctype="multipart/form-data" style="margin-top: 0.5rem;">
       <input type="file" name="ics_file" accept=".ics,text/calendar" required>
       <button type="submit">Upload .ics</button>
-      <span class="hint">Single- or multi-event file; re-uploading a matching UID updates it in place.</span>
+      <p class="hint">Single- or multi-event file; re-uploading a matching UID updates it in place.</p>
     </form>
   </div>
   {{end}}
 </div>
 {{end}}
 
-<div class="add-source">
+<div class="card dashed">
   <h3>Add a source</h3>
   <form class="edit-form" method="post" action="/sources">
-    <label for="new-name">Name</label>
-    <input id="new-name" type="text" name="name" required>
+    <label>Name<input type="text" name="name" required></label>
 
-    <label for="new-type">Type</label>
-    <span>
+    <div class="radio-group">
       <label><input type="radio" name="type" value="url" checked> URL</label>
       <label><input type="radio" name="type" value="manual"> Manual</label>
-    </span>
+    </div>
 
-    <label for="new-url">URL</label>
-    <input id="new-url" type="url" name="url" placeholder="required for URL sources">
+    <label>URL<input type="url" name="url" placeholder="required for URL sources"></label>
 
-    <label for="new-prefix">Title prefix</label>
-    <input id="new-prefix" type="text" name="title_prefix" placeholder="e.g. [Work]">
+    <label>Title prefix<input type="text" name="title_prefix" placeholder="e.g. [Work]"></label>
 
-    <label for="new-default">Include new events by default</label>
-    <input id="new-default" type="checkbox" name="default_include" checked>
+    <label class="checkbox-field"><input type="checkbox" name="default_include" checked> Include new events by default</label>
 
-    <span></span>
     <div class="actions">
       <button type="submit">Add source</button>
     </div>
   </form>
+</div>
+
 </div>
 
 <h2>Filters</h2>
@@ -152,7 +167,7 @@
 {{if not .Filters}}<p class="hint">No filters yet.</p>{{end}}
 
 {{if .Filters}}
-<table class="events-list">
+<table>
   <tr><th>Field</th><th>Type</th><th>Value</th><th></th></tr>
   {{range .Filters}}
   <tr>
@@ -169,91 +184,83 @@
 </table>
 {{end}}
 
-<div class="add-source">
-  <h3>Add a filter</h3>
+<div class="panel">
+  <h3 style="margin-top: 0;">Add a filter</h3>
   <form class="edit-form" method="post" action="/filters">
-    <label for="filter-field">Field</label>
-    <select id="filter-field" name="field">
-      <option value="title">Title</option>
-      <option value="location">Location</option>
-      <option value="description">Description</option>
-      <option value="title_or_description">Title or description</option>
-    </select>
+    <label>Field
+      <select name="field">
+        <option value="title">Title</option>
+        <option value="location">Location</option>
+        <option value="description">Description</option>
+        <option value="title_or_description">Title or description</option>
+      </select>
+    </label>
 
-    <label for="filter-type">Type</label>
-    <select id="filter-type" name="type">
-      <option value="exclude">Exclude</option>
-      <option value="include">Include</option>
-    </select>
+    <label>Type
+      <select name="type">
+        <option value="exclude">Exclude</option>
+        <option value="include">Include</option>
+      </select>
+    </label>
 
-    <label for="filter-value">Value</label>
-    <input id="filter-value" type="text" name="value" required placeholder="substring to match">
+    <label>Value<input type="text" name="value" required placeholder="substring to match"></label>
 
-    <span></span>
     <div class="actions">
       <button type="submit">Add filter</button>
     </div>
   </form>
 </div>
 
-<h2>Duration filter</h2>
-<p class="hint">Global min/max event length. Leave a field blank for no bound.</p>
-
-<form class="edit-form" method="post" action="/duration-filters">
-  <label for="min-minutes">Min minutes</label>
-  <input id="min-minutes" type="number" min="0" name="min_minutes"
-    value="{{if .DurationFilter.MinMinutes}}{{.DurationFilter.MinMinutes}}{{end}}">
-
-  <label for="max-minutes">Max minutes</label>
-  <input id="max-minutes" type="number" min="0" name="max_minutes"
-    value="{{if .DurationFilter.MaxMinutes}}{{.DurationFilter.MaxMinutes}}{{end}}">
-
-  <span></span>
-  <div class="actions">
-    <button type="submit">Save</button>
+<div class="columns">
+  <div>
+    <h2>Duration filter</h2>
+    <p class="hint">Global min/max event length. Leave a field blank for no bound.</p>
+    <form class="edit-form panel" method="post" action="/duration-filters">
+      <label>Min minutes
+        <input type="number" min="0" name="min_minutes" value="{{if .DurationFilter.MinMinutes}}{{.DurationFilter.MinMinutes}}{{end}}">
+      </label>
+      <label>Max minutes
+        <input type="number" min="0" name="max_minutes" value="{{if .DurationFilter.MaxMinutes}}{{.DurationFilter.MaxMinutes}}{{end}}">
+      </label>
+      <div class="actions">
+        <button type="submit">Save</button>
+      </div>
+    </form>
   </div>
-</form>
 
-<h2>Config</h2>
-<p class="hint">Poll interval takes effect immediately (the scheduler reloads its timer on save); the rest apply on the next feed generation.</p>
-
-<form class="edit-form" method="post" action="/config">
-  <label for="feed-title">Feed title</label>
-  <input id="feed-title" type="text" name="feed_title" value="{{.Config.FeedTitle}}" required>
-
-  <label for="refresh-minutes">Poll interval (minutes)</label>
-  <input id="refresh-minutes" type="number" min="1" name="refresh_minutes" value="{{.Config.RefreshMinutes}}" required>
-
-  <label for="max-feed-ttl">Max feed TTL (minutes)</label>
-  <input id="max-feed-ttl" type="number" min="1" name="max_feed_ttl_minutes" value="{{.Config.MaxFeedTTLMinutes}}" required>
-
-  <label for="days-back">Days back</label>
-  <input id="days-back" type="number" min="0" name="days_back" value="{{.Config.DaysBack}}" required>
-
-  <label for="days-forward">Days forward</label>
-  <input id="days-forward" type="number" min="0" name="days_forward" value="{{.Config.DaysForward}}" required>
-
-  <span></span>
-  <div class="actions">
-    <button type="submit">Save</button>
+  <div>
+    <h2>Config</h2>
+    <p class="hint">Poll interval takes effect immediately (the scheduler reloads its timer on save); the rest apply on the next feed generation.</p>
+    <form class="edit-form panel" method="post" action="/config">
+      <label>Feed title<input type="text" name="feed_title" value="{{.Config.FeedTitle}}" required></label>
+      <label>Poll interval (minutes)<input type="number" min="1" name="refresh_minutes" value="{{.Config.RefreshMinutes}}" required></label>
+      <label>Max feed TTL (minutes)<input type="number" min="1" name="max_feed_ttl_minutes" value="{{.Config.MaxFeedTTLMinutes}}" required></label>
+      <label>Days back<input type="number" min="0" name="days_back" value="{{.Config.DaysBack}}" required></label>
+      <label>Days forward<input type="number" min="0" name="days_forward" value="{{.Config.DaysForward}}" required></label>
+      <div class="actions">
+        <button type="submit">Save</button>
+      </div>
+    </form>
   </div>
-</form>
+</div>
 
 <h2>Export / import</h2>
 <p class="hint">Export the full config (sources, manual events, filters, duration filter, rules, exceptions, config) as JSON; import it back here or into a fresh instance.</p>
 
-<div class="actions">
-  <a href="/config/export">Export config</a>
+<div class="panel">
+  <p style="margin-top: 0;"><a href="/config/export">Export config</a></p>
+  <form method="post" action="/config/import" enctype="multipart/form-data">
+    <input type="file" name="import_file" accept="application/json,.json" required>
+    <div class="radio-group" style="margin-top: 0.6rem;">
+      <label><input type="radio" name="mode" value="replace" checked> Replace</label>
+      <label><input type="radio" name="mode" value="merge"> Merge</label>
+    </div>
+    <p class="hint">Replace clears existing sources/filters/config first. Merge adds alongside what's already here and keeps current config.</p>
+    <div class="actions">
+      <button type="submit" onclick="return confirm('Import config? This cannot be undone.');">Import</button>
+    </div>
+  </form>
 </div>
-
-<form method="post" action="/config/import" enctype="multipart/form-data" style="margin-top: 0.75rem;">
-  <input type="file" name="import_file" accept="application/json,.json" required>
-  <label><input type="radio" name="mode" value="replace" checked> Replace — clear existing sources/filters/config first</label>
-  <label><input type="radio" name="mode" value="merge"> Merge — add alongside what's already here, keep current config</label>
-  <div class="actions">
-    <button type="submit" onclick="return confirm('Import config? This cannot be undone.');">Import</button>
-  </div>
-</form>
 
 </body>
 </html>
