@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>permeable — settings</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.4 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: 0.25rem; }
+  h2 { margin-top: 2.5rem; border-bottom: 1px solid #8884; padding-bottom: 0.25rem; }
+  .flash { padding: 0.5rem 0.75rem; border-radius: 4px; margin: 1rem 0; }
+  .flash.ok { background: #2a7f4022; border: 1px solid #2a7f40; }
+  .flash.err { background: #b0303022; border: 1px solid #b03030; }
+  .source-card { border: 1px solid #8884; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+  .source-card h3 { margin: 0 0 0.5rem; }
+  .badge { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: #8884; margin-left: 0.5rem; }
+  .badge.ok { background: #2a7f4033; }
+  .badge.error { background: #b0303033; }
+  form.inline { display: inline; }
+  form.edit-form { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 0.75rem; align-items: center; max-width: 32rem; }
+  form.edit-form label { text-align: right; font-size: 0.85rem; opacity: 0.8; }
+  form.edit-form input[type=text], form.edit-form input[type=url] { width: 100%; box-sizing: border-box; }
+  .actions { margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center; }
+  .danger { color: #b03030; }
+  .events-list { margin-top: 0.75rem; }
+  .events-list table { border-collapse: collapse; width: 100%; }
+  .events-list td, .events-list th { text-align: left; padding: 0.25rem 0.5rem; border-bottom: 1px solid #8882; font-size: 0.9rem; }
+  .add-source { border: 1px dashed #8886; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; }
+  .hint { font-size: 0.8rem; opacity: 0.7; }
+  button { cursor: pointer; }
+</style>
+</head>
+<body>
+
+<h1>permeable</h1>
+<p class="hint">Admin UI — keep this port LAN-only. The public feed is served on a separate port.</p>
+<nav><a href="/events">Events</a><a href="/stats">Stats</a></nav>
+<p>Feed URL: <code>{{.FeedURL}}</code> — subscribe to this from your calendar app.</p>
+<form method="post" action="/refresh">
+  <button type="submit">Refresh now</button>
+</form>
+
+{{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
+{{if .Message}}<div class="flash ok">{{.Message}}</div>{{end}}
+
+<h2>Sources</h2>
+
+{{if not .Sources}}<p class="hint">No sources yet — add one below.</p>{{end}}
+
+{{range .Sources}}
+<div class="source-card">
+  <h3>
+    {{.Name}}
+    <span class="badge">{{.Type}}</span>
+    {{if not .Enabled}}<span class="badge">disabled</span>{{end}}
+    {{if .LastFetchStatus}}<span class="badge {{.LastFetchStatus}}">{{.LastFetchStatus}}</span>{{end}}
+  </h3>
+
+  <form class="edit-form" method="post" action="/sources/{{.ID}}">
+    <label for="name-{{.ID}}">Name</label>
+    <input id="name-{{.ID}}" type="text" name="name" value="{{.Name}}" required>
+
+    {{if eq .Type "url"}}
+    <label for="url-{{.ID}}">URL</label>
+    <input id="url-{{.ID}}" type="url" name="url" value="{{.URL}}" required>
+    {{end}}
+
+    <label for="prefix-{{.ID}}">Title prefix</label>
+    <input id="prefix-{{.ID}}" type="text" name="title_prefix" value="{{.TitlePrefix}}" placeholder="e.g. [Work]">
+
+    <label for="enabled-{{.ID}}">Enabled</label>
+    <input id="enabled-{{.ID}}" type="checkbox" name="enabled" {{if .Enabled}}checked{{end}}>
+
+    <label for="default-{{.ID}}">Include new events by default</label>
+    <input id="default-{{.ID}}" type="checkbox" name="default_include" {{if .DefaultInclude}}checked{{end}}>
+
+    <span></span>
+    <div class="actions">
+      <button type="submit">Save</button>
+    </div>
+  </form>
+
+  <div class="actions">
+    <form class="inline" method="post" action="/sources/{{.ID}}/delete" onsubmit="return confirm('Delete source {{.Name}} and all its rules/events?');">
+      <button type="submit" class="danger">Delete source</button>
+    </form>
+  </div>
+
+  {{if eq .Type "manual"}}
+  <div class="events-list">
+    <h4>Manual events</h4>
+    {{if not .ManualEvents}}<p class="hint">No events uploaded yet.</p>{{end}}
+    {{if .ManualEvents}}
+    <table>
+      <tr><th>UID</th><th>Added</th><th></th></tr>
+      {{range .ManualEvents}}
+      <tr>
+        <td>{{.UID}}</td>
+        <td>{{.AddedAt.Format "2006-01-02 15:04"}}</td>
+        <td>
+          <form class="inline" method="post" action="/sources/{{.SourceID}}/events/{{.ID}}/delete">
+            <button type="submit" class="danger">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{end}}
+    </table>
+    {{end}}
+
+    <form method="post" action="/sources/{{.ID}}/events" enctype="multipart/form-data">
+      <input type="file" name="ics_file" accept=".ics,text/calendar" required>
+      <button type="submit">Upload .ics</button>
+      <span class="hint">Single- or multi-event file; re-uploading a matching UID updates it in place.</span>
+    </form>
+  </div>
+  {{end}}
+</div>
+{{end}}
+
+<div class="add-source">
+  <h3>Add a source</h3>
+  <form class="edit-form" method="post" action="/sources">
+    <label for="new-name">Name</label>
+    <input id="new-name" type="text" name="name" required>
+
+    <label for="new-type">Type</label>
+    <span>
+      <label><input type="radio" name="type" value="url" checked> URL</label>
+      <label><input type="radio" name="type" value="manual"> Manual</label>
+    </span>
+
+    <label for="new-url">URL</label>
+    <input id="new-url" type="url" name="url" placeholder="required for URL sources">
+
+    <label for="new-prefix">Title prefix</label>
+    <input id="new-prefix" type="text" name="title_prefix" placeholder="e.g. [Work]">
+
+    <label for="new-default">Include new events by default</label>
+    <input id="new-default" type="checkbox" name="default_include" checked>
+
+    <span></span>
+    <div class="actions">
+      <button type="submit">Add source</button>
+    </div>
+  </form>
+</div>
+
+<h2>Filters</h2>
+<p class="hint">Global, cross-source, field-based include/exclude. Value matches as a case-insensitive substring. Checked in the order below — the last matching filter wins.</p>
+
+{{if not .Filters}}<p class="hint">No filters yet.</p>{{end}}
+
+{{if .Filters}}
+<table class="events-list">
+  <tr><th>Field</th><th>Type</th><th>Value</th><th></th></tr>
+  {{range .Filters}}
+  <tr>
+    <td>{{.Field}}</td>
+    <td>{{.Type}}</td>
+    <td>{{.Value}}</td>
+    <td>
+      <form class="inline" method="post" action="/filters/{{.ID}}/delete">
+        <button type="submit" class="danger">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+<div class="add-source">
+  <h3>Add a filter</h3>
+  <form class="edit-form" method="post" action="/filters">
+    <label for="filter-field">Field</label>
+    <select id="filter-field" name="field">
+      <option value="title">Title</option>
+      <option value="location">Location</option>
+      <option value="description">Description</option>
+    </select>
+
+    <label for="filter-type">Type</label>
+    <select id="filter-type" name="type">
+      <option value="exclude">Exclude</option>
+      <option value="include">Include</option>
+    </select>
+
+    <label for="filter-value">Value</label>
+    <input id="filter-value" type="text" name="value" required placeholder="substring to match">
+
+    <span></span>
+    <div class="actions">
+      <button type="submit">Add filter</button>
+    </div>
+  </form>
+</div>
+
+<h2>Duration filter</h2>
+<p class="hint">Global min/max event length. Leave a field blank for no bound.</p>
+
+<form class="edit-form" method="post" action="/duration-filters">
+  <label for="min-minutes">Min minutes</label>
+  <input id="min-minutes" type="number" min="0" name="min_minutes"
+    value="{{if .DurationFilter.MinMinutes}}{{.DurationFilter.MinMinutes}}{{end}}">
+
+  <label for="max-minutes">Max minutes</label>
+  <input id="max-minutes" type="number" min="0" name="max_minutes"
+    value="{{if .DurationFilter.MaxMinutes}}{{.DurationFilter.MaxMinutes}}{{end}}">
+
+  <span></span>
+  <div class="actions">
+    <button type="submit">Save</button>
+  </div>
+</form>
+
+<h2>Config</h2>
+<p class="hint">Poll interval takes effect immediately (the scheduler reloads its timer on save); the rest apply on the next feed generation.</p>
+
+<form class="edit-form" method="post" action="/config">
+  <label for="feed-title">Feed title</label>
+  <input id="feed-title" type="text" name="feed_title" value="{{.Config.FeedTitle}}" required>
+
+  <label for="refresh-minutes">Poll interval (minutes)</label>
+  <input id="refresh-minutes" type="number" min="1" name="refresh_minutes" value="{{.Config.RefreshMinutes}}" required>
+
+  <label for="max-feed-ttl">Max feed TTL (minutes)</label>
+  <input id="max-feed-ttl" type="number" min="1" name="max_feed_ttl_minutes" value="{{.Config.MaxFeedTTLMinutes}}" required>
+
+  <label for="days-back">Days back</label>
+  <input id="days-back" type="number" min="0" name="days_back" value="{{.Config.DaysBack}}" required>
+
+  <label for="days-forward">Days forward</label>
+  <input id="days-forward" type="number" min="0" name="days_forward" value="{{.Config.DaysForward}}" required>
+
+  <span></span>
+  <div class="actions">
+    <button type="submit">Save</button>
+  </div>
+</form>
+
+<h2>Export / import</h2>
+<p class="hint">Export the full config (sources, manual events, filters, duration filter, rules, exceptions, config) as JSON; import it back here or into a fresh instance.</p>
+
+<div class="actions">
+  <a href="/config/export">Export config</a>
+</div>
+
+<form method="post" action="/config/import" enctype="multipart/form-data" style="margin-top: 0.75rem;">
+  <input type="file" name="import_file" accept="application/json,.json" required>
+  <label><input type="radio" name="mode" value="replace" checked> Replace — clear existing sources/filters/config first</label>
+  <label><input type="radio" name="mode" value="merge"> Merge — add alongside what's already here, keep current config</label>
+  <div class="actions">
+    <button type="submit" onclick="return confirm('Import config? This cannot be undone.');">Import</button>
+  </div>
+</form>
+
+</body>
+</html>

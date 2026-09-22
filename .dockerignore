@@ -1,0 +1,9 @@
+data/
+*.db
+*.db-shm
+*.db-wal
+.env
+.git/
+.gitignore
+STAGES.md
+CLAUDE.md

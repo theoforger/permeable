@@ -1,0 +1,32 @@
+services:
+  permeable:
+    build: .
+    restart: unless-stopped
+    ports:
+      # Feed port: the one safe to expose — put a reverse proxy (TLS,
+      # rate limiting, etc.) in front of this if you're publishing it.
+      # Host and container side always match PERMEABLE_FEED_PORT, so
+      # changing it in .env moves both what the app binds to and what's
+      # published together.
+      - "${PERMEABLE_FEED_PORT:-8081}:${PERMEABLE_FEED_PORT:-8081}"
+      # Admin port: bound to localhost only by default (PERMEABLE_ADMIN_BIND_HOST).
+      # Reach it via `ssh -L 8080:localhost:8080 your-host`, or set
+      # PERMEABLE_ADMIN_BIND_HOST to your LAN interface's address — never
+      # 0.0.0.0 on a host with a public IP. See README.md#deployment.
+      - "${PERMEABLE_ADMIN_BIND_HOST:-127.0.0.1}:${PERMEABLE_ADMIN_PORT:-8080}:${PERMEABLE_ADMIN_PORT:-8080}"
+    volumes:
+      - permeable-data:/data
+    env_file:
+      # Optional — copy .env.example to .env. The same file drives both
+      # the ports: above (Compose variable substitution, at parse time)
+      # and the app's own environment (via env_file:, at container start)
+      # — one edit keeps them in sync. Everything else (sources, filters,
+      # rules, poll interval after first run, ...) is configured from the
+      # admin UI and lives in the database on the volume above, not here.
+      - path: .env
+        required: false
+    # HEALTHCHECK is already baked into the image (see Dockerfile) —
+    # nothing to add here unless you want to override its timing.
+
+volumes:
+  permeable-data:

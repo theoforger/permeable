@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>permeable — stats</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.4 system-ui, sans-serif; max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: 0.25rem; }
+  h2 { margin-top: 2.5rem; border-bottom: 1px solid #8884; padding-bottom: 0.25rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+  td, th { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #8882; font-size: 0.9rem; }
+  .badge { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: #8884; }
+  .badge.ok { background: #2a7f4033; }
+  .badge.error { background: #b0303033; }
+  .stat-row { display: flex; gap: 2rem; flex-wrap: wrap; margin-top: 1rem; }
+  .stat { border: 1px solid #8884; border-radius: 6px; padding: 0.75rem 1rem; min-width: 9rem; }
+  .stat .value { font-size: 1.5rem; font-weight: 600; }
+  .stat .label { font-size: 0.8rem; opacity: 0.7; }
+  .hint { font-size: 0.8rem; opacity: 0.7; }
+  nav a { margin-right: 1rem; }
+</style>
+</head>
+<body>
+
+<nav><a href="/">&larr; Settings</a><a href="/events">Events</a></nav>
+<h1>Stats</h1>
+
+{{if not .HasGenerated}}
+<p class="hint">No feed generation has run yet — the scheduler runs on startup and every poll interval; check back shortly, or use "Refresh now" on the settings page.</p>
+{{else}}
+<p class="hint">Last generated: {{.GeneratedAt}}</p>
+
+<div class="stat-row">
+  <div class="stat"><div class="value">{{.TotalEventsPreFilter}}</div><div class="label">events before filtering</div></div>
+  <div class="stat"><div class="value">{{.TotalEventsPostFilter}}</div><div class="label">events in published feed</div></div>
+  <div class="stat"><div class="value">{{.SourcesOK}}</div><div class="label">sources OK</div></div>
+  <div class="stat"><div class="value">{{.SourcesError}}</div><div class="label">sources errored</div></div>
+  <div class="stat"><div class="value">{{.EffectiveTTLMinutes}}m</div><div class="label">effective feed TTL</div></div>
+</div>
+{{end}}
+
+<h2>Source health</h2>
+
+{{if not .Sources}}<p class="hint">No sources configured yet.</p>{{end}}
+
+{{if .Sources}}
+<table>
+  <tr><th>Name</th><th>Type</th><th>Enabled</th><th>Last fetch</th><th>Status</th><th>Events</th><th>Declared TTL</th></tr>
+  {{range .Sources}}
+  <tr>
+    <td>{{.Name}}</td>
+    <td>{{.Type}}</td>
+    <td>{{if .Enabled}}yes{{else}}no{{end}}</td>
+    <td>{{if .LastFetchAt}}{{.LastFetchAt.Local.Format "2006-01-02 15:04:05"}}{{else}}never{{end}}</td>
+    <td>
+      {{if .LastFetchStatus}}<span class="badge {{.LastFetchStatus}}">{{.LastFetchStatus}}</span>{{end}}
+      {{if .LastFetchError}}<span class="hint">{{.LastFetchError}}</span>{{end}}
+    </td>
+    <td>{{if .LastEventCount}}{{.LastEventCount}}{{end}}</td>
+    <td>{{if .SourceTTLMinutes}}{{.SourceTTLMinutes}}m{{end}}</td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+</body>
+</html>

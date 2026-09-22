@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>permeable — events</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.4 system-ui, sans-serif; max-width: 70rem; margin: 2rem auto; padding: 0 1rem; }
+  h1 { margin-bottom: 0.25rem; }
+  h2 { margin-top: 2.5rem; border-bottom: 1px solid #8884; padding-bottom: 0.25rem; }
+  .flash { padding: 0.5rem 0.75rem; border-radius: 4px; margin: 1rem 0; }
+  .flash.ok { background: #2a7f4022; border: 1px solid #2a7f40; }
+  .flash.err { background: #b0303022; border: 1px solid #b03030; }
+  .badge { display: inline-block; font-size: 0.75rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: #8884; }
+  .badge.included { background: #2a7f4033; }
+  .badge.excluded { background: #8884; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+  td, th { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid #8882; font-size: 0.9rem; vertical-align: middle; }
+  form.inline { display: inline; margin-right: 0.35rem; }
+  .danger { color: #b03030; }
+  .hint { font-size: 0.8rem; opacity: 0.7; }
+  button { cursor: pointer; font-size: 0.85rem; }
+  nav a { margin-right: 1rem; }
+  tr.excluded td { opacity: 0.55; }
+</style>
+</head>
+<body>
+
+<nav><a href="/">&larr; Settings</a><a href="/stats">Stats</a></nav>
+<h1>Events</h1>
+<p class="hint">Live view — fetches every enabled source on load, independent of the background scheduler's own cached feed. Excluded events are shown dimmed so you can still act on them.</p>
+
+{{if .Error}}<div class="flash err">{{.Error}}</div>{{end}}
+{{if .Message}}<div class="flash ok">{{.Message}}</div>{{end}}
+
+<h2>Active rules</h2>
+
+{{if not .Rules}}<p class="hint">No "always include/exclude" rules yet.</p>{{end}}
+{{if .Rules}}
+<table>
+  <tr><th>Source</th><th>Title</th><th>Action</th><th></th></tr>
+  {{range .Rules}}
+  <tr>
+    <td>{{.SourceName}}</td>
+    <td>{{.TitleNormalized}}</td>
+    <td>{{.Action}}</td>
+    <td>
+      <form class="inline" method="post" action="/events/rules/{{.ID}}/delete">
+        <button type="submit" class="danger">Remove</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+<h2>Hidden occurrences</h2>
+
+{{if not .Exceptions}}<p class="hint">No single-occurrence exceptions yet.</p>{{end}}
+{{if .Exceptions}}
+<table>
+  <tr><th>Source</th><th>Title</th><th>Date</th><th></th></tr>
+  {{range .Exceptions}}
+  <tr>
+    <td>{{.SourceName}}</td>
+    <td>{{.TitleNormalized}}</td>
+    <td>{{.OccurrenceDate}}</td>
+    <td>
+      <form class="inline" method="post" action="/events/exceptions/{{.ID}}/delete">
+        <button type="submit" class="danger">Remove</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+<h2>Occurrences</h2>
+
+{{if not .Decisions}}<p class="hint">No events in the current window — add a source or check back after adjusting the date window.</p>{{end}}
+
+{{if .Decisions}}
+<table>
+  <tr><th>Start</th><th>Title</th><th>Source</th><th>Status</th><th>Actions</th></tr>
+  {{range .Decisions}}
+  <tr class="{{if not .Included}}excluded{{end}}">
+    <td>{{.Event.Start.Format "2006-01-02 15:04"}}</td>
+    <td>{{.Event.Title}}</td>
+    <td>{{.SourceName}}</td>
+    <td><span class="badge {{if .Included}}included{{else}}excluded{{end}}">{{if .Included}}included{{else}}excluded{{end}}</span></td>
+    <td>
+      <form class="inline" method="post" action="/events/exceptions">
+        <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
+        <input type="hidden" name="title" value="{{.Event.Title}}">
+        <input type="hidden" name="occurrence_date" value="{{.OccurrenceDate}}">
+        <button type="submit" title="Exclude just this occurrence">Hide this occurrence</button>
+      </form>
+      <form class="inline" method="post" action="/events/rules">
+        <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
+        <input type="hidden" name="title" value="{{.Event.Title}}">
+        <input type="hidden" name="action" value="exclude">
+        <button type="submit" title="Exclude all future occurrences of this title from this source">Hide all future like this</button>
+      </form>
+      <form class="inline" method="post" action="/events/rules">
+        <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
+        <input type="hidden" name="title" value="{{.Event.Title}}">
+        <input type="hidden" name="action" value="include">
+        <button type="submit" title="Always include all future occurrences of this title from this source">Always show future like this</button>
+      </form>
+    </td>
+  </tr>
+  {{end}}
+</table>
+{{end}}
+
+</body>
+</html>
