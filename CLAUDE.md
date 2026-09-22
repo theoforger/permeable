@@ -81,10 +81,11 @@ Full schema lives in `schema.sql` — load it via `go:embed` migrations in
   TTL ceiling, date window, feed title.
 - **`event_rules`** — per-source, per-title include/exclude for all future
   occurrences.
-- **`event_exceptions`** — per-source, per-title, per-date exclusion of a
-  single occurrence. Takes precedence over `event_rules`.
+- **`event_exceptions`** — per-source, per-title, per-date include/exclude
+  override (`action`) for a single occurrence. Takes precedence over
+  `event_rules`.
 - **`filters`** — global, cross-source, field-based (title/location/
-  description) include/exclude.
+  description/title-or-description) include/exclude.
 - **`duration_filters`** — single-row (`id = 1`) global min/max event length.
 - **`feed_cache`** — the generated output ICS plus last-run stats. `/feed.ics`
   always serves from here; nothing is computed on request.
@@ -116,11 +117,13 @@ Full schema lives in `schema.sql` — load it via `go:embed` migrations in
 6. Merge across sources, dedupe on UID where possible.
 7. Resolve inclusion per event/occurrence, **in this order**:
    1. Source disabled → excluded
-   2. `event_exceptions` match (source, title, this date) → excluded, stop
+   2. `event_exceptions` match (source, title, this date) → use the
+      exception's action, stop
    3. `event_rules` match (source, title) → use rule's action, stop
    4. Otherwise → use `source.default_include`
    5. Duration filter fails (`duration_filters`) → excluded
-   6. Global `filters` (title/location/description, include/exclude) → apply
+   6. Global `filters` (title/location/description/title-or-description,
+      include/exclude) → apply
 8. Apply `title_prefix` for display — after all matching, so prefixes never
    interfere with rule/filter matching.
 9. Compute effective feed TTL: `min(most frequent declared source_ttl_minutes, config.max_feed_ttl_minutes)`.
@@ -160,7 +163,7 @@ split is routing/binding only, not a second binary.
 | `POST /filters`, `POST /filters/{id}/delete` | admin | Field-based include/exclude filters |
 | `POST /duration-filters` | admin | Min/max event length |
 | `POST /config` | admin | Poll interval, max feed TTL ceiling, date window, feed title |
-| `GET /events` | admin | Per-occurrence list; "hide this occurrence" → `event_exceptions`, "hide all future like this" → `event_rules` |
+| `GET /events` | admin | Per-occurrence list; "Hide"/"Show" this occurrence → `event_exceptions` (include or exclude), "Hide all"/"Show all" → `event_rules` |
 | `GET /stats` | admin | Last generation time, pre/post-filter counts, per-source health table |
 | `GET /healthz` | admin | Plain up/DB-reachable check, for Docker healthcheck (checked from inside the container/LAN, not the public port) |
 | `GET /config/export` | admin | Full config as JSON |

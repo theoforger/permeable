@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"permeable/internal/db"
 	"permeable/internal/scheduler"
@@ -223,4 +224,91 @@ func TestUploadManualEvents_RejectsNonManualSource(t *testing.T) {
 	if !strings.Contains(loc, "err=") {
 		t.Errorf("upload to url-type source was accepted; Location = %q, want an err= flash", loc)
 	}
+}
+
+func TestCreateFilter_AcceptsTitleOrDescriptionField(t *testing.T) {
+	admin, _ := newTestServer(t)
+	client := noRedirectClient()
+
+	resp := postForm(t, client, admin.URL+"/filters", url.Values{
+		"field": {"title_or_description"}, "type": {"exclude"}, "value": {"confidential"},
+	})
+	loc := resp.Header.Get("Location")
+	if resp.StatusCode != http.StatusSeeOther || !strings.Contains(loc, "ok=") {
+		t.Fatalf("status=%d location=%q, want 303 with an ok= flash", resp.StatusCode, loc)
+	}
+
+	settingsResp, err := admin.Client().Get(admin.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	if !bodyContains(t, settingsResp, "title_or_description") {
+		t.Error("settings page does not list the created title_or_description filter")
+	}
+}
+
+// TestEventException_IncludeOverridesDefaultExclude covers "only include
+// this occurrence": an event from a default_include=false source must
+// show as included after an include-action exception is set for it, and
+// flip back to excluded if the exception is later changed to exclude —
+// end to end through real HTTP requests, not just filtersvc's unit tests.
+func TestEventException_IncludeOverridesDefaultExclude(t *testing.T) {
+	admin, _ := newTestServer(t)
+	client := admin.Client()
+
+	resp := postForm(t, client, admin.URL+"/sources", url.Values{
+		"name": {"Quiet Source"}, "type": {"manual"}, // default_include unset -> false
+	})
+	resp.Body.Close()
+
+	occurrenceDate := time.Now().UTC().AddDate(0, 0, 1).Format("20060102")
+	var buf strings.Builder
+	buf.WriteString("--boundary\r\nContent-Disposition: form-data; name=\"ics_file\"; filename=\"x.ics\"\r\nContent-Type: text/calendar\r\n\r\n")
+	buf.WriteString("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n" +
+		"BEGIN:VEVENT\r\nUID:standup@example.com\r\nDTSTAMP:20260101T000000Z\r\n" +
+		"DTSTART:" + occurrenceDate + "T090000Z\r\nDTEND:" + occurrenceDate + "T093000Z\r\n" +
+		"SUMMARY:Standup\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	buf.WriteString("--boundary--\r\n")
+	req, err := http.NewRequest(http.MethodPost, admin.URL+"/sources/1/events", strings.NewReader(buf.String()))
+	if err != nil {
+		t.Fatalf("build upload request: %v", err)
+	}
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	uploadResp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("POST upload: %v", err)
+	}
+	uploadResp.Body.Close()
+
+	occurrenceDateDashed := occurrenceDate[0:4] + "-" + occurrenceDate[4:6] + "-" + occurrenceDate[6:8]
+
+	assertEventsPageStatus := func(t *testing.T, want string) {
+		t.Helper()
+		eventsResp, err := client.Get(admin.URL + "/events")
+		if err != nil {
+			t.Fatalf("GET /events: %v", err)
+		}
+		if !bodyContains(t, eventsResp, `class="badge `+want+`"`) {
+			t.Errorf("events page does not show a %q badge for the occurrence", want)
+		}
+	}
+
+	// Baseline: default_include=false, no override yet -> excluded.
+	assertEventsPageStatus(t, "excluded")
+
+	// "Only include this occurrence."
+	incResp := postForm(t, client, admin.URL+"/events/exceptions", url.Values{
+		"source_id": {"1"}, "title": {"Standup"}, "occurrence_date": {occurrenceDateDashed}, "action": {"include"},
+	})
+	incResp.Body.Close()
+	assertEventsPageStatus(t, "included")
+
+	// Flip back to "hide this occurrence" for the same spot — must
+	// update the existing row in place (schema UNIQUE constraint), not
+	// add a second exception.
+	excResp := postForm(t, client, admin.URL+"/events/exceptions", url.Values{
+		"source_id": {"1"}, "title": {"Standup"}, "occurrence_date": {occurrenceDateDashed}, "action": {"exclude"},
+	})
+	excResp.Body.Close()
+	assertEventsPageStatus(t, "excluded")
 }

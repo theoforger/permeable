@@ -111,9 +111,9 @@ func (h *Handler) handleEventsPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleCreateEventException hides a single occurrence ("hide this
-// occurrence").
-func (h *Handler) handleCreateEventException(w http.ResponseWriter, r *http.Request) {
+// handleUpsertEventException sets a single occurrence's override ("hide
+// this occurrence" / "only include this occurrence").
+func (h *Handler) handleUpsertEventException(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		h.redirectTo(w, r, "/events", "err", "could not parse form: "+err.Error())
 		return
@@ -126,17 +126,26 @@ func (h *Handler) handleCreateEventException(w http.ResponseWriter, r *http.Requ
 	}
 	title := strings.TrimSpace(r.FormValue("title"))
 	occurrenceDate := strings.TrimSpace(r.FormValue("occurrence_date"))
+	action := model.FilterAction(r.FormValue("action"))
 	if title == "" || occurrenceDate == "" {
 		h.redirectTo(w, r, "/events", "err", "title and occurrence_date are required")
 		return
 	}
-
-	err = db.CreateEventException(r.Context(), h.db, sourceID, model.NormalizeTitle(title), occurrenceDate)
-	if err != nil {
-		h.serverError(w, "create event exception", err)
+	if action != model.FilterActionInclude && action != model.FilterActionExclude {
+		h.redirectTo(w, r, "/events", "err", "action must be include or exclude")
 		return
 	}
-	h.redirectTo(w, r, "/events", "ok", "occurrence hidden")
+
+	err = db.UpsertEventException(r.Context(), h.db, sourceID, model.NormalizeTitle(title), occurrenceDate, action)
+	if err != nil {
+		h.serverError(w, "upsert event exception", err)
+		return
+	}
+	if action == model.FilterActionInclude {
+		h.redirectTo(w, r, "/events", "ok", "occurrence included")
+	} else {
+		h.redirectTo(w, r, "/events", "ok", "occurrence hidden")
+	}
 }
 
 func (h *Handler) handleDeleteEventException(w http.ResponseWriter, r *http.Request) {

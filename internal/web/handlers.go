@@ -70,7 +70,7 @@ func (h *Handler) AdminRoutes() http.Handler {
 	mux.HandleFunc("POST /duration-filters", h.handleUpdateDurationFilters)
 	mux.HandleFunc("POST /config", h.handleUpdateConfig)
 	mux.HandleFunc("GET /events", h.handleEventsPage)
-	mux.HandleFunc("POST /events/exceptions", h.handleCreateEventException)
+	mux.HandleFunc("POST /events/exceptions", h.handleUpsertEventException)
 	mux.HandleFunc("POST /events/exceptions/{id}/delete", h.handleDeleteEventException)
 	mux.HandleFunc("POST /events/rules", h.handleUpsertEventRule)
 	mux.HandleFunc("POST /events/rules/{id}/delete", h.handleDeleteEventRule)
@@ -403,9 +403,9 @@ func (h *Handler) handleCreateFilter(w http.ResponseWriter, r *http.Request) {
 	value := strings.TrimSpace(r.FormValue("value"))
 
 	switch field {
-	case model.FilterFieldTitle, model.FilterFieldLocation, model.FilterFieldDescription:
+	case model.FilterFieldTitle, model.FilterFieldLocation, model.FilterFieldDescription, model.FilterFieldTitleOrDescription:
 	default:
-		h.redirectError(w, r, "field must be title, location, or description")
+		h.redirectError(w, r, "field must be title, location, description, or title_or_description")
 		return
 	}
 	if typ != model.FilterActionInclude && typ != model.FilterActionExclude {

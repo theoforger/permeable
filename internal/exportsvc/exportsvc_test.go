@@ -74,8 +74,8 @@ func seedFullConfig(t *testing.T, ctx context.Context, sqlDB *sql.DB) seededSour
 	if err := db.UpsertEventRule(ctx, sqlDB, urlSourceID, "standup", model.FilterActionExclude); err != nil {
 		t.Fatalf("UpsertEventRule: %v", err)
 	}
-	if err := db.CreateEventException(ctx, sqlDB, manualSourceID, "dentist", "2026-09-01"); err != nil {
-		t.Fatalf("CreateEventException: %v", err)
+	if err := db.UpsertEventException(ctx, sqlDB, manualSourceID, "dentist", "2026-09-01", model.FilterActionExclude); err != nil {
+		t.Fatalf("UpsertEventException: %v", err)
 	}
 
 	cfg, err := db.GetConfig(ctx, sqlDB)
@@ -189,7 +189,8 @@ func TestExportImport_ReplaceIntoFreshDBReproducesOriginalState(t *testing.T) {
 	if len(gotExc) != 1 || len(wantExc) != 1 {
 		t.Fatalf("event exceptions: got %d, want %d (both expected 1)", len(gotExc), len(wantExc))
 	}
-	if gotExc[0].SourceID != wantExc[0].SourceID || gotExc[0].TitleNormalized != wantExc[0].TitleNormalized || gotExc[0].OccurrenceDate != wantExc[0].OccurrenceDate {
+	if gotExc[0].SourceID != wantExc[0].SourceID || gotExc[0].TitleNormalized != wantExc[0].TitleNormalized ||
+		gotExc[0].OccurrenceDate != wantExc[0].OccurrenceDate || gotExc[0].Action != wantExc[0].Action {
 		t.Errorf("event exception mismatch: want %+v, got %+v", wantExc[0], gotExc[0])
 	}
 

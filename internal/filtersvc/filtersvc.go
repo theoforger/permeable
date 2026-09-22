@@ -52,7 +52,8 @@ func ResolveAll(events []model.Event, in Input) []Decision {
 // resolveOne applies CLAUDE.md pipeline step 7 in order:
 //
 //   - Step 1, source disabled: excluded, stop.
-//   - Step 2, event_exceptions match (this exact occurrence): excluded, stop.
+//   - Step 2, event_exceptions match (this exact occurrence): the
+//     exception's action, stop.
 //   - Step 3, event_rules match (this title, any occurrence): the rule's
 //     action, stop — this and step 2 short-circuit steps 4-6 entirely.
 //   - Step 4, otherwise: source.default_include is the baseline.
@@ -71,7 +72,7 @@ func resolveOne(e model.Event, in Input) bool {
 
 	for _, exc := range in.Exceptions {
 		if exc.SourceID == e.SourceID && exc.TitleNormalized == title && exc.OccurrenceDate == occurrenceDate {
-			return false
+			return exc.Action == model.FilterActionInclude
 		}
 	}
 	for _, r := range in.Rules {
@@ -107,19 +108,21 @@ func passesDuration(e model.Event, df model.DurationFilter) bool {
 }
 
 func filterMatches(e model.Event, f model.Filter) bool {
-	var fieldValue string
-	switch f.Field {
-	case model.FilterFieldTitle:
-		fieldValue = e.Title
-	case model.FilterFieldLocation:
-		fieldValue = e.Location
-	case model.FilterFieldDescription:
-		fieldValue = e.Description
-	default:
-		return false
-	}
 	if f.Value == "" {
 		return false
 	}
-	return strings.Contains(strings.ToLower(fieldValue), strings.ToLower(f.Value))
+	value := strings.ToLower(f.Value)
+
+	switch f.Field {
+	case model.FilterFieldTitle:
+		return strings.Contains(strings.ToLower(e.Title), value)
+	case model.FilterFieldLocation:
+		return strings.Contains(strings.ToLower(e.Location), value)
+	case model.FilterFieldDescription:
+		return strings.Contains(strings.ToLower(e.Description), value)
+	case model.FilterFieldTitleOrDescription:
+		return strings.Contains(strings.ToLower(e.Title), value) || strings.Contains(strings.ToLower(e.Description), value)
+	default:
+		return false
+	}
 }

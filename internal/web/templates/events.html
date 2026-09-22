@@ -55,17 +55,18 @@
 </table>
 {{end}}
 
-<h2>Hidden occurrences</h2>
+<h2>Occurrence overrides</h2>
 
-{{if not .Exceptions}}<p class="hint">No single-occurrence exceptions yet.</p>{{end}}
+{{if not .Exceptions}}<p class="hint">No single-occurrence overrides yet.</p>{{end}}
 {{if .Exceptions}}
 <table>
-  <tr><th>Source</th><th>Title</th><th>Date</th><th></th></tr>
+  <tr><th>Source</th><th>Title</th><th>Date</th><th>Action</th><th></th></tr>
   {{range .Exceptions}}
   <tr>
     <td>{{.SourceName}}</td>
     <td>{{.TitleNormalized}}</td>
     <td>{{.OccurrenceDate}}</td>
+    <td>{{.Action}}</td>
     <td>
       <form class="inline" method="post" action="/events/exceptions/{{.ID}}/delete">
         <button type="submit" class="danger">Remove</button>
@@ -94,19 +95,27 @@
         <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
         <input type="hidden" name="title" value="{{.Event.Title}}">
         <input type="hidden" name="occurrence_date" value="{{.OccurrenceDate}}">
-        <button type="submit" title="Exclude just this occurrence">Hide this occurrence</button>
+        <input type="hidden" name="action" value="exclude">
+        <button type="submit" title="Exclude just this occurrence">Hide</button>
+      </form>
+      <form class="inline" method="post" action="/events/exceptions">
+        <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
+        <input type="hidden" name="title" value="{{.Event.Title}}">
+        <input type="hidden" name="occurrence_date" value="{{.OccurrenceDate}}">
+        <input type="hidden" name="action" value="include">
+        <button type="submit" title="Include just this occurrence, even if it would otherwise be excluded">Show</button>
       </form>
       <form class="inline" method="post" action="/events/rules">
         <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
         <input type="hidden" name="title" value="{{.Event.Title}}">
         <input type="hidden" name="action" value="exclude">
-        <button type="submit" title="Exclude all future occurrences of this title from this source">Hide all future like this</button>
+        <button type="submit" title="Exclude all future occurrences of this title from this source">Hide all</button>
       </form>
       <form class="inline" method="post" action="/events/rules">
         <input type="hidden" name="source_id" value="{{.Event.SourceID}}">
         <input type="hidden" name="title" value="{{.Event.Title}}">
         <input type="hidden" name="action" value="include">
-        <button type="submit" title="Always include all future occurrences of this title from this source">Always show future like this</button>
+        <button type="submit" title="Always include all future occurrences of this title from this source">Show all</button>
       </form>
     </td>
   </tr>

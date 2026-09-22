@@ -7,52 +7,70 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"permeable/internal/db"
 	"permeable/internal/fetchsvc"
 	"permeable/internal/model"
 )
 
+// icsUTC formats a time offset from now as an ICS UTC timestamp. Tests
+// use offsets (not hardcoded dates) so fixtures stay inside the default
+// fetch window (7 days back, 90 days forward) no matter when they run.
+func icsUTC(offset time.Duration) string {
+	return time.Now().UTC().Add(offset).Format("20060102T150405Z")
+}
+
+// mixedGoodOffset is shared between mixedICS's "mixed-good" event and the
+// manual-source duplicate of it in TestRun — both must land on the exact
+// same instant for the cross-source (UID, start) dedup case to exercise
+// what it's meant to.
+const mixedGoodOffset = 72 * time.Hour
+
 // goodICS has two well-formed VEVENTs and a declared TTL, so it exercises
 // normalization plus X-PUBLISHED-TTL parsing.
-const goodICS = "BEGIN:VCALENDAR\r\n" +
-	"VERSION:2.0\r\n" +
-	"PRODID:-//test//test//EN\r\n" +
-	"X-PUBLISHED-TTL:PT30M\r\n" +
-	"BEGIN:VEVENT\r\n" +
-	"UID:good-1@example.com\r\n" +
-	"DTSTAMP:20260101T000000Z\r\n" +
-	"DTSTART:20260901T090000Z\r\n" +
-	"DTEND:20260901T100000Z\r\n" +
-	"SUMMARY:Good Event One\r\n" +
-	"END:VEVENT\r\n" +
-	"BEGIN:VEVENT\r\n" +
-	"UID:good-2@example.com\r\n" +
-	"DTSTAMP:20260101T000000Z\r\n" +
-	"DTSTART:20260902T090000Z\r\n" +
-	"DTEND:20260902T100000Z\r\n" +
-	"SUMMARY:Good Event Two\r\n" +
-	"END:VEVENT\r\n" +
-	"END:VCALENDAR\r\n"
+func goodICS() string {
+	return "BEGIN:VCALENDAR\r\n" +
+		"VERSION:2.0\r\n" +
+		"PRODID:-//test//test//EN\r\n" +
+		"X-PUBLISHED-TTL:PT30M\r\n" +
+		"BEGIN:VEVENT\r\n" +
+		"UID:good-1@example.com\r\n" +
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"DTSTART:" + icsUTC(24*time.Hour) + "\r\n" +
+		"DTEND:" + icsUTC(25*time.Hour) + "\r\n" +
+		"SUMMARY:Good Event One\r\n" +
+		"END:VEVENT\r\n" +
+		"BEGIN:VEVENT\r\n" +
+		"UID:good-2@example.com\r\n" +
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"DTSTART:" + icsUTC(48*time.Hour) + "\r\n" +
+		"DTEND:" + icsUTC(49*time.Hour) + "\r\n" +
+		"SUMMARY:Good Event Two\r\n" +
+		"END:VEVENT\r\n" +
+		"END:VCALENDAR\r\n"
+}
 
 // mixedICS has one well-formed VEVENT and one malformed (no DTSTART), to
 // verify malformed VEVENTs are skipped without failing the whole source.
-const mixedICS = "BEGIN:VCALENDAR\r\n" +
-	"VERSION:2.0\r\n" +
-	"PRODID:-//test//test//EN\r\n" +
-	"BEGIN:VEVENT\r\n" +
-	"UID:mixed-good@example.com\r\n" +
-	"DTSTAMP:20260101T000000Z\r\n" +
-	"DTSTART:20260903T090000Z\r\n" +
-	"DTEND:20260903T100000Z\r\n" +
-	"SUMMARY:Mixed Good Event\r\n" +
-	"END:VEVENT\r\n" +
-	"BEGIN:VEVENT\r\n" +
-	"UID:mixed-bad@example.com\r\n" +
-	"DTSTAMP:20260101T000000Z\r\n" +
-	"SUMMARY:Missing DTSTART\r\n" +
-	"END:VEVENT\r\n" +
-	"END:VCALENDAR\r\n"
+func mixedICS() string {
+	return "BEGIN:VCALENDAR\r\n" +
+		"VERSION:2.0\r\n" +
+		"PRODID:-//test//test//EN\r\n" +
+		"BEGIN:VEVENT\r\n" +
+		"UID:mixed-good@example.com\r\n" +
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"DTSTART:" + icsUTC(mixedGoodOffset) + "\r\n" +
+		"DTEND:" + icsUTC(mixedGoodOffset+time.Hour) + "\r\n" +
+		"SUMMARY:Mixed Good Event\r\n" +
+		"END:VEVENT\r\n" +
+		"BEGIN:VEVENT\r\n" +
+		"UID:mixed-bad@example.com\r\n" +
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"SUMMARY:Missing DTSTART\r\n" +
+		"END:VEVENT\r\n" +
+		"END:VCALENDAR\r\n"
+}
 
 func openTestDB(t *testing.T) *sql.DB {
 	t.Helper()
@@ -108,12 +126,12 @@ func ptr(i int) *int { return &i }
 func TestRun(t *testing.T) {
 	goodServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/calendar")
-		_, _ = w.Write([]byte(goodICS))
+		_, _ = w.Write([]byte(goodICS()))
 	}))
 	defer goodServer.Close()
 
 	mixedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(mixedICS))
+		_, _ = w.Write([]byte(mixedICS()))
 	}))
 	defer mixedServer.Close()
 
@@ -137,10 +155,10 @@ func TestRun(t *testing.T) {
 	// "mixed-good" intentionally shares its UID and start time with the
 	// mixed URL source's event, to exercise cross-source dedup too.
 	mustUpsertManualEvent(t, ctx, sqlDB, manualSourceID, "mixed-good@example.com",
-		"BEGIN:VEVENT\r\nUID:mixed-good@example.com\r\nDTSTAMP:20260101T000000Z\r\n"+
-			"DTSTART:20260903T090000Z\r\nDTEND:20260903T100000Z\r\nSUMMARY:Mixed Good Event\r\nEND:VEVENT")
+		"BEGIN:VEVENT\r\nUID:mixed-good@example.com\r\nDTSTAMP:"+icsUTC(0)+"\r\n"+
+			"DTSTART:"+icsUTC(mixedGoodOffset)+"\r\nDTEND:"+icsUTC(mixedGoodOffset+time.Hour)+"\r\nSUMMARY:Mixed Good Event\r\nEND:VEVENT")
 	mustUpsertManualEvent(t, ctx, sqlDB, manualSourceID, "mixed-bad@example.com",
-		"BEGIN:VEVENT\r\nUID:mixed-bad@example.com\r\nDTSTAMP:20260101T000000Z\r\n"+
+		"BEGIN:VEVENT\r\nUID:mixed-bad@example.com\r\nDTSTAMP:"+icsUTC(0)+"\r\n"+
 			"SUMMARY:Missing DTSTART\r\nEND:VEVENT")
 
 	result, err := fetchsvc.Run(ctx, sqlDB)
@@ -173,7 +191,7 @@ func TestRun(t *testing.T) {
 
 func TestRun_SourceErrorIsolated(t *testing.T) {
 	goodServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(goodICS))
+		_, _ = w.Write([]byte(goodICS()))
 	}))
 	defer goodServer.Close()
 
@@ -221,7 +239,7 @@ func TestRun_SourceErrorIsolated(t *testing.T) {
 // per-source error, not crash or abort the run.
 func TestRun_GarbageContentIsolated(t *testing.T) {
 	goodServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(goodICS))
+		_, _ = w.Write([]byte(goodICS()))
 	}))
 	defer goodServer.Close()
 

@@ -16,9 +16,10 @@ rules, exceptions, and filters — some make it through, some don't.
   directly — useful for one-off events with no calendar of their own.
 - RRULE recurrence expansion within a configurable date window.
 - Filtering at three levels: a per-source default (include/exclude new
-  events by default), global field-based filters (title/location/
-  description), and per-event rules ("hide this one occurrence" /
-  "hide all future occurrences of this title").
+  events by default), global field-based filters (title, location,
+  description, or title-or-description), and per-event overrides (hide or
+  only-include a single occurrence; hide or always-show all future
+  occurrences of a title).
 - A duration filter (min/max event length).
 - Per-source health tracking and a `/stats` page.
 - A background scheduler that republishes the merged feed on an interval
@@ -152,12 +153,13 @@ etc. are exactly what you'd do for any other static-ish endpoint.
 2. Set each source's default: include new events by default, or exclude
    them by default (useful for a noisy calendar you only want specific
    things from).
-3. Add global filters (title/location/description, include/exclude,
-   case-insensitive substring match) and/or a duration filter for things
-   that apply across every source.
+3. Add global filters (title, location, description, or title-or-description,
+   include/exclude, case-insensitive substring match) and/or a duration
+   filter for things that apply across every source.
 4. Use `/events` to see every upcoming occurrence, what's currently
-   included/excluded and why, and to hide a single occurrence or all
-   future occurrences of a given title.
+   included/excluded and why, and to hide or only-include a single
+   occurrence, or hide or always-show all future occurrences of a given
+   title. Each button's tooltip spells out exactly what it does.
 5. Subscribe your calendar app to the feed URL shown on `/` (the feed
    port). Most apps poll on their own schedule regardless of the
    published TTL, so also set the poll interval in `/config` to

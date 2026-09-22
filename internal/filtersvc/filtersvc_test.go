@@ -137,7 +137,7 @@ func TestResolve_ExceptionBeatsEverything(t *testing.T) {
 	in := filtersvc.Input{
 		Sources: map[int64]model.Source{1: {ID: 1, Enabled: true, DefaultInclude: true}},
 		Exceptions: []model.EventException{
-			{SourceID: 1, TitleNormalized: "standup", OccurrenceDate: "2026-01-05"},
+			{SourceID: 1, TitleNormalized: "standup", OccurrenceDate: "2026-01-05", Action: model.FilterActionExclude},
 		},
 		Rules:   []model.EventRule{{SourceID: 1, TitleNormalized: "standup", Action: model.FilterActionInclude}},
 		Filters: []model.Filter{{Field: model.FilterFieldTitle, Type: model.FilterActionInclude, Value: "standup"}},
@@ -146,15 +146,35 @@ func TestResolve_ExceptionBeatsEverything(t *testing.T) {
 
 	got := filtersvc.Resolve(events, in)
 	if len(got) != 0 {
-		t.Errorf("Resolve() = %+v, want excluded (exception beats include rule and include filter)", got)
+		t.Errorf("Resolve() = %+v, want excluded (exclude exception beats include rule and include filter)", got)
 	}
 }
 
-func TestResolve_ExceptionOnlyExcludesThatOccurrence(t *testing.T) {
+func TestResolve_IncludeExceptionBeatsEverything(t *testing.T) {
+	// The symmetric case: "only include this occurrence" must rescue an
+	// event that an exclude rule, an exclude filter, and a
+	// default_include=false source would all otherwise have dropped.
+	in := filtersvc.Input{
+		Sources: map[int64]model.Source{1: {ID: 1, Enabled: true, DefaultInclude: false}},
+		Exceptions: []model.EventException{
+			{SourceID: 1, TitleNormalized: "standup", OccurrenceDate: "2026-01-05", Action: model.FilterActionInclude},
+		},
+		Rules:   []model.EventRule{{SourceID: 1, TitleNormalized: "standup", Action: model.FilterActionExclude}},
+		Filters: []model.Filter{{Field: model.FilterFieldTitle, Type: model.FilterActionExclude, Value: "standup"}},
+	}
+	events := []model.Event{newEvent(1, "e", "Standup", "", "", 30)} // 2026-01-05 per newEvent
+
+	got := filtersvc.Resolve(events, in)
+	if len(got) != 1 {
+		t.Errorf("Resolve() = %+v, want included (include exception beats exclude rule and exclude filter)", got)
+	}
+}
+
+func TestResolve_ExceptionOnlyAffectsThatOccurrence(t *testing.T) {
 	in := filtersvc.Input{
 		Sources: map[int64]model.Source{1: {ID: 1, Enabled: true, DefaultInclude: true}},
 		Exceptions: []model.EventException{
-			{SourceID: 1, TitleNormalized: "standup", OccurrenceDate: "2026-01-05"},
+			{SourceID: 1, TitleNormalized: "standup", OccurrenceDate: "2026-01-05", Action: model.FilterActionExclude},
 		},
 	}
 	other := newEvent(1, "other-date", "Standup", "", "", 30)
@@ -213,6 +233,25 @@ func TestResolveAll_ReportsExcludedEventsToo(t *testing.T) {
 	}
 	if got[0].Event.UID != "e" {
 		t.Errorf("ResolveAll()[0].Event.UID = %q, want %q", got[0].Event.UID, "e")
+	}
+}
+
+func TestResolve_FilterOnTitleOrDescriptionMatchesEither(t *testing.T) {
+	in := filtersvc.Input{
+		Sources: map[int64]model.Source{1: {ID: 1, Enabled: true, DefaultInclude: true}},
+		Filters: []model.Filter{
+			{Field: model.FilterFieldTitleOrDescription, Type: model.FilterActionExclude, Value: "confidential"},
+		},
+	}
+	events := []model.Event{
+		newEvent(1, "by-title", "Confidential Review", "", "", 30),
+		newEvent(1, "by-description", "Meeting", "", "confidential details inside", 30),
+		newEvent(1, "neither", "Meeting", "", "public notes", 30),
+	}
+
+	got := filtersvc.Resolve(events, in)
+	if len(got) != 1 || got[0].UID != "neither" {
+		t.Errorf("Resolve() = %+v, want only 'neither'", got)
 	}
 }
 

@@ -22,13 +22,14 @@ type EventRule struct {
 	CreatedAt       time.Time
 }
 
-// EventException excludes a single occurrence ("hide just this one"),
-// identified by source, normalized title, and the occurrence's date.
-// Takes precedence over EventRule.
+// EventException is a per-source, per-title, per-date include/exclude
+// override for a single occurrence ("hide just this one" / "only include
+// this one"). Takes precedence over EventRule.
 type EventException struct {
 	ID              int64
 	SourceID        int64
 	TitleNormalized string
 	OccurrenceDate  string // YYYY-MM-DD
+	Action          FilterAction
 	CreatedAt       time.Time
 }

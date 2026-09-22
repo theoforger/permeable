@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	ics "github.com/arran4/golang-ical"
 
@@ -15,22 +16,37 @@ import (
 	"permeable/internal/model"
 )
 
-const urlSourceICS = "BEGIN:VCALENDAR\r\n" +
-	"VERSION:2.0\r\n" +
-	"PRODID:-//test//test//EN\r\n" +
-	"X-PUBLISHED-TTL:PT15M\r\n" +
-	"BEGIN:VEVENT\r\n" +
-	"UID:work-standup@example.com\r\n" +
-	"DTSTAMP:20260101T000000Z\r\n" +
-	"DTSTART:20260901T090000Z\r\n" +
-	"DTEND:20260901T093000Z\r\n" +
-	"SUMMARY:Standup\r\n" +
-	"END:VEVENT\r\n" +
-	"END:VCALENDAR\r\n"
+// icsUTC formats a time offset from now as an ICS UTC timestamp. Tests
+// use offsets (not hardcoded dates) so fixtures stay inside the default
+// date window (7 days back, 90 days forward) no matter when they run.
+func icsUTC(offset time.Duration) string {
+	return time.Now().UTC().Add(offset).Format("20060102T150405Z")
+}
+
+// icsDate formats a time offset from now as an ICS all-day DATE value
+// (YYYYMMDD, no time component).
+func icsDate(offset time.Duration) string {
+	return time.Now().UTC().Add(offset).Format("20060102")
+}
+
+func urlSourceICS() string {
+	return "BEGIN:VCALENDAR\r\n" +
+		"VERSION:2.0\r\n" +
+		"PRODID:-//test//test//EN\r\n" +
+		"X-PUBLISHED-TTL:PT15M\r\n" +
+		"BEGIN:VEVENT\r\n" +
+		"UID:work-standup@example.com\r\n" +
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"DTSTART:" + icsUTC(24*time.Hour) + "\r\n" +
+		"DTEND:" + icsUTC(24*time.Hour+30*time.Minute) + "\r\n" +
+		"SUMMARY:Standup\r\n" +
+		"END:VEVENT\r\n" +
+		"END:VCALENDAR\r\n"
+}
 
 func TestGenerate(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = w.Write([]byte(urlSourceICS))
+		_, _ = w.Write([]byte(urlSourceICS()))
 	}))
 	defer srv.Close()
 
@@ -56,8 +72,8 @@ func TestGenerate(t *testing.T) {
 		t.Fatalf("CreateSource(home): %v", err)
 	}
 	if err := db.UpsertManualEvent(ctx, sqlDB, homeSourceID, "dentist@example.com",
-		"BEGIN:VEVENT\r\nUID:dentist@example.com\r\nDTSTAMP:20260101T000000Z\r\n"+
-			"DTSTART:20260902T140000Z\r\nDTEND:20260902T150000Z\r\nSUMMARY:Dentist\r\nEND:VEVENT"); err != nil {
+		"BEGIN:VEVENT\r\nUID:dentist@example.com\r\nDTSTAMP:"+icsUTC(0)+"\r\n"+
+			"DTSTART:"+icsUTC(48*time.Hour)+"\r\nDTEND:"+icsUTC(49*time.Hour)+"\r\nSUMMARY:Dentist\r\nEND:VEVENT"); err != nil {
 		t.Fatalf("UpsertManualEvent: %v", err)
 	}
 
@@ -200,14 +216,16 @@ func TestGenerate_SourceErrorStillProducesFeed(t *testing.T) {
 // special-cased, since a max-duration filter is a reasonable way to hide
 // multi-day retreats/vacations from a feed meant for meetings.
 func TestGenerate_AllDayEventRoundTrips(t *testing.T) {
-	const allDayICS = "BEGIN:VCALENDAR\r\n" +
+	holidayStart := icsDate(24 * time.Hour)
+	holidayEnd := icsDate(48 * time.Hour)
+	allDayICS := "BEGIN:VCALENDAR\r\n" +
 		"VERSION:2.0\r\n" +
 		"PRODID:-//test//test//EN\r\n" +
 		"BEGIN:VEVENT\r\n" +
 		"UID:holiday@example.com\r\n" +
-		"DTSTAMP:20260101T000000Z\r\n" +
-		"DTSTART;VALUE=DATE:20260901\r\n" +
-		"DTEND;VALUE=DATE:20260902\r\n" +
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"DTSTART;VALUE=DATE:" + holidayStart + "\r\n" +
+		"DTEND;VALUE=DATE:" + holidayEnd + "\r\n" +
 		"SUMMARY:Company Holiday\r\n" +
 		"END:VEVENT\r\n" +
 		"END:VCALENDAR\r\n"
@@ -238,10 +256,10 @@ func TestGenerate_AllDayEventRoundTrips(t *testing.T) {
 		t.Fatalf("TotalEventsPostFilter = %d, want 1 (all-day events included by default)", fc.TotalEventsPostFilter)
 	}
 
-	if !strings.Contains(fc.ICSContent, "DTSTART;VALUE=DATE:20260901") {
+	if !strings.Contains(fc.ICSContent, "DTSTART;VALUE=DATE:"+holidayStart) {
 		t.Errorf("output missing all-day DTSTART;VALUE=DATE:\n%s", fc.ICSContent)
 	}
-	if !strings.Contains(fc.ICSContent, "DTEND;VALUE=DATE:20260902") {
+	if !strings.Contains(fc.ICSContent, "DTEND;VALUE=DATE:"+holidayEnd) {
 		t.Errorf("output missing all-day DTEND;VALUE=DATE:\n%s", fc.ICSContent)
 	}
 
@@ -253,10 +271,11 @@ func TestGenerate_AllDayEventRoundTrips(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("got %d VEVENTs, want 1", len(events))
 	}
+	wantStart, _ := time.Parse("20060102", holidayStart)
 	if start, err := events[0].GetAllDayStartAt(); err != nil {
 		t.Errorf("GetAllDayStartAt: %v", err)
-	} else if start.Format("2006-01-02") != "2026-09-01" {
-		t.Errorf("all-day start = %s, want 2026-09-01", start.Format("2006-01-02"))
+	} else if start.Format("2006-01-02") != wantStart.Format("2006-01-02") {
+		t.Errorf("all-day start = %s, want %s", start.Format("2006-01-02"), wantStart.Format("2006-01-02"))
 	}
 }
 
@@ -264,14 +283,14 @@ func TestGenerate_AllDayEventRoundTrips(t *testing.T) {
 // special-casing" half of the Stage 12 decision: a max-duration filter
 // correctly excludes an all-day event using its full-day span.
 func TestGenerate_DurationFilterAppliesToAllDaySpan(t *testing.T) {
-	const allDayICS = "BEGIN:VCALENDAR\r\n" +
+	allDayICS := "BEGIN:VCALENDAR\r\n" +
 		"VERSION:2.0\r\n" +
 		"PRODID:-//test//test//EN\r\n" +
 		"BEGIN:VEVENT\r\n" +
 		"UID:retreat@example.com\r\n" +
-		"DTSTAMP:20260101T000000Z\r\n" +
-		"DTSTART;VALUE=DATE:20260901\r\n" +
-		"DTEND;VALUE=DATE:20260903\r\n" + // 2-day span = 2880 minutes
+		"DTSTAMP:" + icsUTC(0) + "\r\n" +
+		"DTSTART;VALUE=DATE:" + icsDate(24*time.Hour) + "\r\n" +
+		"DTEND;VALUE=DATE:" + icsDate(72*time.Hour) + "\r\n" + // 2-day span = 2880 minutes
 		"SUMMARY:Company Retreat\r\n" +
 		"END:VEVENT\r\n" +
 		"END:VCALENDAR\r\n"

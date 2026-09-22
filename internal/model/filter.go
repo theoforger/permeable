@@ -4,9 +4,10 @@ package model
 type FilterField string
 
 const (
-	FilterFieldTitle       FilterField = "title"
-	FilterFieldLocation    FilterField = "location"
-	FilterFieldDescription FilterField = "description"
+	FilterFieldTitle              FilterField = "title"
+	FilterFieldLocation           FilterField = "location"
+	FilterFieldDescription        FilterField = "description"
+	FilterFieldTitleOrDescription FilterField = "title_or_description"
 )
 
 // FilterAction is what a matching Filter (or event rule, Stage 6) does.

@@ -60,7 +60,7 @@ CREATE TABLE event_exceptions (
 -- global cross-source filters, field-based
 CREATE TABLE filters (
     id      INTEGER PRIMARY KEY,
-    field   TEXT NOT NULL DEFAULT 'title',  -- 'title' | 'location' | 'description'
+    field   TEXT NOT NULL DEFAULT 'title',  -- 'title' | 'location' | 'description' | 'title_or_description'
     type    TEXT NOT NULL CHECK (type IN ('include','exclude')),
     value   TEXT NOT NULL
 );

@@ -197,7 +197,7 @@ func importChildRows(ctx context.Context, sqlDB *sql.DB, bundle model.ExportBund
 		if !ok {
 			continue
 		}
-		if err := db.CreateEventException(ctx, sqlDB, sourceID, e.TitleNormalized, e.OccurrenceDate); err != nil {
+		if err := db.UpsertEventException(ctx, sqlDB, sourceID, e.TitleNormalized, e.OccurrenceDate, e.Action); err != nil {
 			return err
 		}
 		stats.EventExceptions++
